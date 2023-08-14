@@ -4,8 +4,13 @@
 #include <stack>
 #include <mutex>
 #include <random>
+#include <initializer_list>
+#include <condition_variable>
 
 std::mutex mtx;
+
+std::condition_variable cond;
+
 
 template<class T>
 void quick_sort(typename T::iterator first, typename T::iterator last, std::stack<std::pair<typename T::iterator, typename T::iterator>>& tasks) { // 5 3 2 4 5 7 8 3 6 1 1 6(o)
@@ -50,59 +55,56 @@ void quick_sort(typename T::iterator first, typename T::iterator last, std::stac
 		}
 	}
 
-	//quick_sort<T>(first, first + medium, v);
-	//quick_sort<T>(first + right_medium + 1, last, v);
-
 	
-	mtx.lock();
+	std::lock_guard<std::mutex> lg(mtx);
 	
 	tasks.push({ first, first + medium });
 	tasks.push({ first + right_medium + 1, last});
-	
-	mtx.unlock();
 
+	cond.notify_all();
 }
 
 
 template<class T>
 void get_work(std::stack<std::pair<typename T::iterator, typename T::iterator>>& tasks, std::vector<std::thread::id>& busy_threads) {
 
-	//mtx.lock();
-
-	//bool exist_busy_thread = busy_threads.size();
-	//bool tasks_empty = tasks.empty();
-
-
-	//mtx.unlock();
-
 
 	while (true) {
-		mtx.lock();
+		std::unique_lock<std::mutex> ul(mtx);
 
-		if (tasks.empty() && !busy_threads.size()) {
-			mtx.unlock();
+		cond.wait(ul, [&tasks, &busy_threads] {return !tasks.empty() || busy_threads.size() || (!busy_threads.size() && tasks.empty()); });
+
+		if (tasks.empty() && busy_threads.size()) {
+			ul.unlock();
+			continue;
+		}
+
+		else if (tasks.empty() && !busy_threads.size()) {
+			ul.unlock();
 			break;
 		}
 
+		
+		auto current_task = tasks.top();
+		tasks.pop();
+
 		if (!tasks.empty()) {
-			auto current_task = tasks.top();
-			tasks.pop();
-
-			busy_threads.push_back(std::this_thread::get_id());
-
-			mtx.unlock();
-
-			quick_sort<std::vector<int>>(current_task.first, current_task.second, tasks);
-
-			mtx.lock();
-
-			busy_threads.erase(std::find(busy_threads.begin(), busy_threads.end(), std::this_thread::get_id()));
-
-			//exist_busy_thread = busy_threads.size();
-			//tasks_empty = tasks.empty();
+			cond.notify_all();
 		}
 
-		mtx.unlock();
+
+		busy_threads.push_back(std::this_thread::get_id());
+
+		ul.unlock();
+
+		quick_sort<std::vector<int>>(current_task.first, current_task.second, tasks);
+
+		ul.lock();
+
+		busy_threads.erase(std::find(busy_threads.begin(), busy_threads.end(), std::this_thread::get_id()));
+
+		cond.notify_all();
+		
 	}
 
 
@@ -125,11 +127,6 @@ void my_sort(typename T::iterator first, typename T::iterator last) {
 		threads.push_back(std::thread(get_work<std::vector<int>>, std::ref(tasks), std::ref(busy_threads)));
 	}
 	
-	//std::thread th(get_work<std::vector<int>>, std::ref(tasks), std::ref(busy_threads));
-	//std::thread th2(get_work<std::vector<int>>, std::ref(tasks), std::ref(busy_threads));
-	//
-	//th.join();
-	//th2.join();
 	
 	for (auto& thread : threads) {
 		thread.join();
@@ -141,7 +138,7 @@ int main(){
 
 	for (int i = 0; i < 100; i++) {
 
-		std::vector<int> v(rand() % 10000);
+		std::vector<int> v(rand() % 1000);
 
 		for (int i = 0; i < v.size(); i++) {
 			v[i] = rand();
