@@ -88,9 +88,9 @@ void get_work(std::stack<std::pair<typename T::iterator, typename T::iterator>>&
 		auto current_task = tasks.top();
 		tasks.pop();
 
-		if (!tasks.empty()) {
-			cond.notify_all();
-		}
+		//if (!tasks.empty()) {
+		//	cond.notify_all();
+		//}
 
 
 		busy_threads.push_back(std::this_thread::get_id());
