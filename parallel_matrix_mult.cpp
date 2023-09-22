@@ -50,7 +50,10 @@ public:
     }
 
     matrix_parallel_mult operator*(const matrix_parallel_mult& m) const{
-        std::lock_guard<std::mutex> lg(mtx_for_operations);
+        std::lock(mtx_for_operations, m.mtx_for_operations);
+
+        std::lock_guard<std::mutex> lg1(mtx_for_operations, std::adopt_lock);
+        std::lock_guard<std::mutex> lg2(m.mtx_for_operations, std::adopt_lock);
 
         std::queue<std::function<std::pair<size_t, std::vector<T>>()>> tasks;
         std::mutex mtx_for_worker;
