@@ -57,11 +57,7 @@ public:
         std::mutex mtx_for_adding;
 
         size_t num_threads = std::thread::hardware_concurrency();
-        std::vector<std::vector<T>> result_data;
-
-        for (size_t i = 0; i < data.size(); i++) {
-            result_data.push_back(std::vector<T>(m.data[0].size()));
-        }
+        std::vector<std::vector<T>> result_data(data.size());
 
         for (size_t i = 0; i < data.size(); i++) {
             tasks.push([&, i] {return std::make_pair(i, mult(*this, m, i)); });
