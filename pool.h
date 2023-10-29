@@ -5,6 +5,7 @@
 #include <queue>
 #include <vector>
 #include <unordered_set>
+#include <exception>
 
 
 class ThreadPool{
@@ -21,6 +22,8 @@ class ThreadPool{
     std::atomic<int> task_index = 0;
 
     std::atomic<bool> end = false;
+
+    std::atomic<int> last_index_completed_task = -1;
 
     void run(){
         while (true){
@@ -41,6 +44,8 @@ class ThreadPool{
 
                 completed_tasks.insert(current_task.first);
 
+                last_index_completed_task.store(current_task.first);
+
                 c_var_for_completed_tasks.notify_all();
             }
         }
@@ -54,6 +59,9 @@ public:
     }
 
     ~ThreadPool(){
+        end.store(true);
+        c_var_for_tasks.notify_all();
+        
         for (auto& thread : threads){
             thread.join();
         }
@@ -75,12 +83,20 @@ public:
     }
 
     bool is_task_done(int index){
+        if (index < 0 || index >= task_index){
+            throw std::invalid_argument("incorrect index");
+        }
+
         std::lock_guard<std::mutex> lg(mutex_for_completed_tasks);
 
         return completed_tasks.find(index) != completed_tasks.end();
     }
 
     void wait_task(int index){
+        if (index < 0 || index >= task_index){
+            throw std::invalid_argument("incorrect index");
+        }
+
         std::unique_lock<std::mutex> ul(mutex_for_completed_tasks);
 
         c_var_for_completed_tasks.wait(ul, [this, index]{
@@ -92,7 +108,7 @@ public:
         std::unique_lock<std::mutex> ul(mutex_for_completed_tasks);
 
         c_var_for_completed_tasks.wait(ul, [this]{
-            return !tasks.size();
+            return !tasks.size() && last_index_completed_task.load() == task_index.load() - 1;
             });
     }
 };
