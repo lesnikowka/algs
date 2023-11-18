@@ -1,5 +1,7 @@
 #include <iostream>
 #include <vector>
+#include <queue>
+#include <unordered_set>
 
 
 void visualize(const std::vector<std::vector<bool>>& m) {
@@ -9,6 +11,14 @@ void visualize(const std::vector<std::vector<bool>>& m) {
 		}
 		std::cout << std::endl;
 	}
+}
+
+void visualizeQ(std::queue<int> q) {
+	while (!q.empty()) {
+		std::cout << q.front() << " ";
+		q.pop();
+	}
+	std::cout << std::endl;
 }
 
 bool is2Degree(int n) {
@@ -56,8 +66,59 @@ std::vector<std::vector<bool>> createHypercube(int n) {
 	return m;
 }
 
+std::queue<int> getPath(std::vector<std::vector<bool>> m, int start, int end) {
+	std::unordered_set<int> labelled;
+
+	std::queue<std::pair<int, std::queue<int>>> verticiesAndPath;
+
+	verticiesAndPath.push(std::make_pair(start, std::queue<int>()));
+	labelled.insert(start);
+
+	while (!verticiesAndPath.empty()) {
+		int size = verticiesAndPath.size();
+
+		for (int i = 0; i < size; i++) {
+			
+			for (int j = 0; j < m[0].size(); j++) {
+				if (m[verticiesAndPath.front().first][j] && labelled.find(j) == labelled.end()) {
+					labelled.insert(j);
+					std::queue<int> newPath(verticiesAndPath.front().second);
+					newPath.push(verticiesAndPath.front().first);
+
+					if (j == end) {
+						return newPath;
+					}
+
+					verticiesAndPath.push(std::make_pair(j, newPath));
+				}
+			}
+
+			verticiesAndPath.pop();
+		}
+	}
+	
+	return std::queue<int>();
+}
+
 int main() {
-	auto m = createHypercube(32);
+	int n;
+	std::cin >> n;
+
+	auto m = createHypercube(n);
 
 	visualize(m);
+	
+
+	while (true) {
+		int start, end;
+
+		std::cin >> start;
+		std::cin >> end;
+
+		auto q = getPath(m, start, end);
+
+		std::cout << std::endl << "Q: \n";
+
+		visualizeQ(q);
+	}
 }
